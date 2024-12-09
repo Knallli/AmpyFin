@@ -14,5 +14,4 @@ stats
 PyWavelets
 ripser
 datetime
-ta-lib-python
 pandas-ta
