@@ -50,8 +50,8 @@ from helper_files.client_helper import strategies, get_latest_price, get_ndaq_ti
 import time
 from datetime import datetime 
 import heapq 
-
-
+import certifi
+ca = certifi.where()
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s',
@@ -72,7 +72,7 @@ def process_ticker(ticker, mongo_client):
             current_price = get_latest_price(ticker)
          except Exception as fetch_error:
             logging.warning(f"Error fetching price for {ticker}. Retrying... {fetch_error}")
-            time.sleep(60)
+            time.sleep(10)
       while historical_data is None:
          try:
             
@@ -252,7 +252,7 @@ def update_portfolio_values(client):
    still need to implement.
    we go through each strategy and update portfolio value buy cash + summation(holding * current price)
    """
-    
+   
    db = client.trading_simulator  
    holdings_collection = db.algorithm_holdings
    # Update portfolio values
@@ -279,7 +279,7 @@ def update_portfolio_values(client):
       holdings_collection.update_one({"strategy": strategy_doc["strategy"]}, {"$set": {"portfolio_value": portfolio_value}}, upsert=True)
 
    # Update MongoDB with the modified strategy documents
-   
+   client.close()
 
 def update_ranks(client):
    """"
@@ -306,14 +306,14 @@ def update_ranks(client):
       if strategy_name == "test" or strategy_name == "test_strategy":
          continue
 
-      heapq.heappush(q, (points_collection.find_one({"strategy": strategy_name})["total_points"]/10 + ((strategy_doc["portfolio_value"] / 50000) * 2), strategy_doc["successful_trades"] - strategy_doc["failed_trades"], strategy_doc["amount_cash"], strategy_doc["strategy"]))
+      heapq.heappush(q, (points_collection.find_one({"strategy": strategy_name})["total_points"]/10 + (strategy_doc["portfolio_value"]), strategy_doc["successful_trades"] - strategy_doc["failed_trades"], strategy_doc["amount_cash"], strategy_doc["strategy"]))
    rank = 1
    while q:
       
       _, _, _, strategy_name = heapq.heappop(q)
       rank_collection.insert_one({"strategy": strategy_name, "rank": rank})
       rank+=1
-   
+   client.close()
 
 def main():  
    """  
@@ -325,16 +325,7 @@ def main():
    
    
    while True: 
-      # Check the market status
-      mongo_client = MongoClient(mongo_url)
-      client = RESTClient(api_key=POLYGON_API_KEY)
-      status = market_status(client)  # Use the helper function for market status
-      market_db = mongo_client.market_data
-      market_collection = market_db.market_status
-        
-      market_collection.update_one({}, {"$set": {"market_status": status}})
-      logging.debug(f"Settings market status to: {status}")
-
+      mongo_client = MongoClient(mongo_url, tlsCAFile=ca)
       status = mongo_client.market_data.market_status.find_one({})["market_status"]
       
       
@@ -355,6 +346,8 @@ def main():
             thread.join()
 
          
+         
+
          logging.info("Finished processing all strategies. Waiting for 60 seconds.")
          time.sleep(60)  
       
@@ -377,6 +370,7 @@ def main():
             
             mongo_client.trading_simulator.time_delta.update_one({}, {"$inc": {"time_delta": 0.01}})
             
+            
             #Update ranks
             update_portfolio_values(mongo_client)
             update_ranks(mongo_client)
@@ -385,7 +379,7 @@ def main():
       else:  
         logging.error("An error occurred while checking market status.")  
         time.sleep(60)
-      
+      mongo_client.close()
    
   
 if __name__ == "__main__":  
