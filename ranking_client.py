@@ -327,7 +327,16 @@ def main():
    
    
    while True: 
+      # Check the market status
       mongo_client = MongoClient(mongo_url)
+      client = RESTClient(api_key=POLYGON_API_KEY)
+      status = market_status(client)  # Use the helper function for market status
+      market_db = mongo_client.market_data
+      market_collection = market_db.market_status
+        
+      market_collection.update_one({}, {"$set": {"market_status": status}})
+      logging.debug(f"Settings market status to: {status}")
+
       status = mongo_client.market_data.market_status.find_one({})["market_status"]
       
       
