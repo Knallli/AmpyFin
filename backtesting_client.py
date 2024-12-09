@@ -1,5 +1,5 @@
 from pymongo import MongoClient
-from helper_files.client_helper import strategies, get_latest_price, dynamic_period_selector
+from helper_files.client_helper import get_latest_price
 from strategies.talib_indicators import get_data, simulate_strategy
 from config import mongo_url, FINANCIAL_PREP_API_KEY
 import pandas as pd
@@ -9,19 +9,19 @@ import os
 
 logging.basicConfig(level=logging.INFO)
 
-def load_historical_data(ticker, period):
-    """Load historical data for a given ticker."""
-    file_path = f"data/{ticker}_{period}.csv"
+def load_historical_data(ticker):
+    """Load historical data for a given ticker in the finest resolution possible."""
+    file_path = f"data/{ticker}_1min.csv"
     if os.path.exists(file_path):
         data = pd.read_csv(file_path, index_col='Date', parse_dates=True)
         last_date = data.index[-1]
-        new_data = get_data(ticker, period)
+        new_data = get_data(ticker, '1min')
         new_data = new_data[new_data.index > last_date]
         if not new_data.empty:
             data = pd.concat([data, new_data])
             data.to_csv(file_path)
     else:
-        data = get_data(ticker, period)
+        data = get_data(ticker, '1min')
         data.to_csv(file_path)
     
     if data.empty:
@@ -114,11 +114,11 @@ def display_non_profitable_strategies(non_profitable_strategies):
         return table_html
     return ""
 
-def backtest(ticker, period):
+def backtest(ticker):
     """Backtest all strategies on a given ticker."""
-    historical_data = load_historical_data(ticker, period)
+    historical_data = load_historical_data(ticker)
     if historical_data.empty:
-        raise ValueError(f"No historical data available for ticker {ticker} and period {period}")
+        raise ValueError(f"No historical data available for ticker {ticker}")
     
     strategy_performances = {}
     non_profitable_strategies = {}
@@ -160,5 +160,4 @@ def backtest(ticker, period):
 
 if __name__ == "__main__":
     ticker = 'AAPL'  # Example ticker
-    period = dynamic_period_selector(ticker)  # Use dynamic period selector from web UI
-    backtest(ticker, period)
+    backtest(ticker)
