@@ -1,13 +1,13 @@
-polygon-api-client
+fastapi
+uvicorn
 pymongo
-certifi
-alpaca-py
+alpaca-trade-api
+polygon-api-client
 yfinance
+certifi
 scipy
 pandas
 cython
-fastapi
-uvicorn
 motor
 python-dotenv
 stats
@@ -16,3 +16,4 @@ ripser
 datetime
 ta-lib-python
 pandas-ta
+tables
