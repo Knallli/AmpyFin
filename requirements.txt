@@ -14,4 +14,6 @@ stats
 PyWavelets
 ripser
 datetime
-#pandas-ta
+pandas-ta
+ta-lib
+libta-lib
