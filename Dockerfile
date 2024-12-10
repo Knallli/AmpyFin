@@ -13,6 +13,7 @@ RUN apt-get update && \
 RUN git clone https://github.com/Knallli/AmpyFin.git /app
 
 # Install Python dependencies
-ARG PYTHON_VERSION=3.11
-RUN conda install python=${PYTHON_VERSION} && \
-    cd /app && conda install -c conda-forge --file /app/requirements.txt
+ARG PYTHON_VERSION=3.12
+# Set the entry point to run the ranking client
+RUN cd /app && git pull && conda install -c conda-forge ta-lib libta-lib
+RUN cd /app && python -m pip install -r /app/requirements.txt

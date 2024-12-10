@@ -15,5 +15,3 @@ PyWavelets
 ripser
 datetime
 pandas-ta
-ta-lib
-libta-lib
