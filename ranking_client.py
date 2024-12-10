@@ -50,8 +50,8 @@ from helper_files.client_helper import strategies, get_latest_price, get_ndaq_ti
 import time
 from datetime import datetime 
 import heapq 
-import certifi
-ca = certifi.where()
+#import certifi
+#ca = certifi.where()
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s',
@@ -325,7 +325,7 @@ def main():
    
    
    while True: 
-      mongo_client = MongoClient(mongo_url, tlsCAFile=ca)
+      mongo_client = MongoClient(mongo_url)
       status = mongo_client.market_data.market_status.find_one({})["market_status"]
       
       
