@@ -313,7 +313,7 @@ def update_ranks(client):
       _, _, _, strategy_name = heapq.heappop(q)
       rank_collection.insert_one({"strategy": strategy_name, "rank": rank})
       rank+=1
-   client.close()
+   #client.close()
 
 def main():  
    """  
@@ -379,7 +379,7 @@ def main():
       else:  
         logging.error("An error occurred while checking market status.")  
         time.sleep(60)
-      mongo_client.close()
+      #mongo_client.close()
    
   
 if __name__ == "__main__":  
