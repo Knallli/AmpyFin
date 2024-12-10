@@ -12,5 +12,5 @@ RUN apt-get update && \
 # Clone the repository
 RUN git clone https://github.com/Knallli/AmpyFin.git /app
 
-# Set the entry point to run the ranking client
-ENTRYPOINT ["sh", "-c", "cd /app && git pull && conda install -c conda-forge ta-lib libta-lib && python -m pip install -r /app/requirements.txt && python /app/ranking_client.py"]
+# Install Python dependencies
+RUN cd /app && conda install -c conda-forge ta-lib libta-lib && python -m pip install -r /app/requirements.txt
