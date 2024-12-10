@@ -279,7 +279,7 @@ def update_portfolio_values(client):
       holdings_collection.update_one({"strategy": strategy_doc["strategy"]}, {"$set": {"portfolio_value": portfolio_value}}, upsert=True)
 
    # Update MongoDB with the modified strategy documents
-   client.close()
+   #client.close()
 
 def update_ranks(client):
    """"
