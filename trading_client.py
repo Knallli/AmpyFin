@@ -52,7 +52,7 @@ def get_historical_data_cached(ticker, timestamp):
 
 def get_latest_prices_parallel(tickers):
     """
-    Holt die aktuellen Preise für mehrere Tickers parallel
+    Holt die aktuellen Preise für mehrere Tickers parallel mit Rate Limiting
     """
     def fetch_single_price(ticker):
         try:
@@ -61,8 +61,17 @@ def get_latest_prices_parallel(tickers):
             logging.error(f"Error fetching price for {ticker}: {e}")
             return ticker, None
 
-    with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
-        results = list(executor.map(fetch_single_price, tickers))
+    results = []
+    # Process in smaller batches to avoid overwhelming the connection pool
+    batch_size = 5
+    for i in range(0, len(tickers), batch_size):
+        batch = tickers[i:i+batch_size]
+        with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
+            batch_results = list(executor.map(fetch_single_price, batch))
+            results.extend(batch_results)
+        # Add delay between batches
+        time.sleep(1)
+
     return {ticker: price for ticker, price in results if price is not None}
 
 def weighted_majority_decision_and_median_quantity(decisions_and_quantities):  

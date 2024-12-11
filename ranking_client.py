@@ -64,22 +64,25 @@ logging.basicConfig(
 
 def process_ticker(ticker, mongo_client):
    try:
-      
       current_price = None
       historical_data = None
-      while current_price is None:
+      max_retries = 3
+      
+      for attempt in range(max_retries):
          try:
-            current_price = get_latest_price(ticker)
+            if current_price is None:
+               current_price = get_latest_price(ticker)
+            if historical_data is None:
+               historical_data = get_data(ticker)
+            if current_price is not None and historical_data is not None:
+               break
          except Exception as fetch_error:
-            logging.warning(f"Error fetching price for {ticker}. Retrying... {fetch_error}")
-            time.sleep(10)
-      while historical_data is None:
-         try:
-            
-            historical_data = get_data(ticker)
-         except Exception as fetch_error:
-            logging.warning(f"Error fetching historical data for {ticker}. Retrying... {fetch_error}")
-            time.sleep(10)
+            logging.warning(f"Attempt {attempt + 1}: Error fetching data for {ticker}. {fetch_error}")
+            time.sleep(2 ** attempt)  # Exponential backoff
+
+      if current_price is None or historical_data is None:
+         logging.error(f"Failed to fetch data for {ticker} after {max_retries} attempts")
+         return
 
       for strategy in strategies:
             
