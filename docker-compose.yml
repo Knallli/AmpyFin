@@ -8,7 +8,7 @@ services:
       - ./config.py:/app/config.py
     command: >
       sh -c "
-      cd /app && git pull && python /app/webui.py"
+      cd /app && git pull origin prevent-daytrading && python /app/webui.py"
 
   ranking:
     build:
@@ -17,7 +17,7 @@ services:
       - ./config.py:/app/config.py
     command: >
       sh -c "
-      cd /app && git pull && python /app/ranking_client.py"
+      cd /app && git pull origin prevent-daytrading && python /app/ranking_client.py"
 
   trading:
     build:
@@ -26,4 +26,4 @@ services:
       - ./config.py:/app/config.py
     command: >
       sh -c "
-      cd /app && git pull && python /app/trading_client.py"
+      cd /app && git pull origin prevent-daytrading && python /app/trading_client.py"

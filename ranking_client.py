@@ -85,7 +85,7 @@ def process_ticker(ticker, mongo_client):
             
          db = mongo_client.trading_simulator  
          holdings_collection = db.algorithm_holdings
-         print(f"Processing {strategy.__name__} for {ticker}")
+         logging.debug(f"Processing {strategy.__name__} for {ticker}")
          strategy_doc = holdings_collection.find_one({"strategy": strategy.__name__})
          if not strategy_doc:
             logging.warning(f"Strategy {strategy.__name__} not found in database. Skipping.")
@@ -100,7 +100,7 @@ def process_ticker(ticker, mongo_client):
          simulate_trade(ticker, strategy, historical_data, current_price,
                         account_cash, portfolio_qty, total_portfolio_value, mongo_client)
          
-      print(f"{ticker} processing completed.")
+      logging.debug(f"{ticker} processing completed.")
    except Exception as e:
       logging.error(f"Error in thread for {ticker}: {e}")
 
@@ -110,7 +110,7 @@ def simulate_trade(ticker, strategy, historical_data, current_price, account_cas
    """
     
    # Simulate trading action from strategy
-   print(f"Simulating trade for {ticker} with strategy {strategy.__name__} and quantity of {portfolio_qty}")
+   logging.debug(f"Simulating trade for {ticker} with strategy {strategy.__name__} and quantity of {portfolio_qty}")
    action, quantity = simulate_strategy(strategy, ticker, current_price, historical_data, account_cash, portfolio_qty, total_portfolio_value)
    
    # MongoDB setup
@@ -127,7 +127,7 @@ def simulate_trade(ticker, strategy, historical_data, current_price, account_cas
    
    # Update holdings and cash based on trade action
    if action in ["buy"] and strategy_doc["amount_cash"] - quantity * current_price > 15000 and quantity > 0 and ((portfolio_qty + quantity) * current_price) / total_portfolio_value < 0.10:
-      logging.info(f"Action: {action} | Ticker: {ticker} | Quantity: {quantity} | Price: {current_price}")
+      logging.debug(f"Action: {action} | Ticker: {ticker} | Quantity: {quantity} | Price: {current_price}")
       # Calculate average price if already holding some shares of the ticker
       if ticker in holdings_doc:
          current_qty = holdings_doc[ticker]["quantity"]
@@ -160,7 +160,7 @@ def simulate_trade(ticker, strategy, historical_data, current_price, account_cas
 
    elif action in ["sell"] and str(ticker) in holdings_doc and holdings_doc[str(ticker)]["quantity"] > 0:
       
-      logging.info(f"Action: {action} | Ticker: {ticker} | Quantity: {quantity} | Price: {current_price}")
+      logging.debug(f"Action: {action} | Ticker: {ticker} | Quantity: {quantity} | Price: {current_price}")
       current_qty = holdings_doc[ticker]["quantity"]
         
       # Ensure we do not sell more than we have
@@ -243,8 +243,8 @@ def simulate_trade(ticker, strategy, historical_data, current_price, account_cas
          del holdings_doc[ticker]
         
    else:
-      logging.info(f"Action: {action} | Ticker: {ticker} | Quantity: {quantity} | Price: {current_price}")
-   print(f"Action: {action} | Ticker: {ticker} | Quantity: {quantity} | Price: {current_price}")
+      logging.debug(f"Action: {action} | Ticker: {ticker} | Quantity: {quantity} | Price: {current_price}")
+   logging.debug(f"Action: {action} | Ticker: {ticker} | Quantity: {quantity} | Price: {current_price}")
    # Close the MongoDB connection
 
 def update_portfolio_values(client):
