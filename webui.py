@@ -3,7 +3,7 @@ from fastapi.responses import JSONResponse, HTMLResponse
 from pymongo import MongoClient
 from config import mongo_url
 from backtesting_client import backtest, apply_strategy
-from helper_files.client_helper import strategies, get_data
+from helper_files.client_helper import strategies, get_data, get_latest_price
 import logging
 import json
 from datetime import datetime
