@@ -323,34 +323,35 @@ def main():
    early_hour_first_iteration = True
    post_market_hour_first_iteration = True
    
-   
    while True: 
       mongo_client = MongoClient(mongo_url)
       status = mongo_client.market_data.market_status.find_one({})["market_status"]
-      
       
       if status == "open":  
          logging.info("Market is open. Processing strategies.")  
          if not ndaq_tickers:
             ndaq_tickers = get_ndaq_tickers(mongo_url, FINANCIAL_PREP_API_KEY)
 
-         threads = []
+         # Verarbeite die Tickers in kleineren Batches
+         batch_size = 5  # Kleinere Batch-Größe für bessere Kontrolle
+         for i in range(0, len(ndaq_tickers), batch_size):
+            batch = ndaq_tickers[i:i+batch_size]
+            threads = []
 
-         for ticker in ndaq_tickers:
-            thread = threading.Thread(target=process_ticker, args=(ticker, mongo_client))
-            threads.append(thread)
-            thread.start()
+            for ticker in batch:
+               thread = threading.Thread(target=process_ticker, args=(ticker, mongo_client))
+               threads.append(thread)
+               thread.start()
 
-         # Wait for all threads to complete
-         for thread in threads:
-            thread.join()
+            # Wait for all threads to complete
+            for thread in threads:
+               thread.join()
 
-         
-         
+            time.sleep(1)  # Pause zwischen Batches
 
          logging.info("Finished processing all strategies. Waiting for 60 seconds.")
          time.sleep(60)  
-      
+
       elif status == "early_hours":  
             if early_hour_first_iteration:  
                
