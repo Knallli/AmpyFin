@@ -182,7 +182,27 @@ def market_status(polygon_client):
         return "error"
 
 # Helper to get latest price
-@lru_cache(maxsize=100, ttl=60)  # Cache für 60 Sekunden
+from time import time
+from functools import wraps
+
+def timed_lru_cache(seconds: int, maxsize: int = 128):
+    def wrapper_decorator(func):
+        func = lru_cache(maxsize=maxsize)(func)
+        func.lifetime = seconds
+        func.expiration = time() + seconds
+
+        @wraps(func)
+        def wrapped_func(*args, **kwargs):
+            if time() >= func.expiration:
+                func.cache_clear()
+                func.expiration = time() + func.lifetime
+            return func(*args, **kwargs)
+
+        return wrapped_func
+
+    return wrapper_decorator
+
+@timed_lru_cache(seconds=60, maxsize=100)
 def get_latest_price(ticker):  
     """  
     Fetch the latest price for a given stock ticker using yfinance with retry logic.  
