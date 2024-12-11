@@ -2,7 +2,7 @@ from pymongo import MongoClient
 from alpaca.trading.client import TradingClient
 from alpaca.trading.requests import MarketOrderRequest
 from alpaca.trading.enums import OrderSide, TimeInForce
-from datetime import datetime
+from datetime import datetime, timedelta
 import logging
 import yfinance as yf
 
@@ -33,24 +33,38 @@ def connect_to_mongo(mongo_url):
 # Helper to place an order
 def place_order(trading_client, symbol, side, qty, mongo_url):
     """
-    Place a market order and log the order to MongoDB.
+    Platziert eine Market Order und protokolliert sie in MongoDB.
+    Prüft zuvor den PDT-Status für Konten unter $25.000.
 
-    :param trading_client: The Alpaca trading client instance
-    :param symbol: The stock symbol to trade
-    :param side: Order side (OrderSide.BUY or OrderSide.SELL)
-    :param qty: Quantity to trade
-    :param mongo_url: MongoDB connection URL
-    :return: Order result from Alpaca API
+    :param trading_client: Die Alpaca Trading Client Instanz
+    :param symbol: Das zu handelnde Symbol
+    :param side: Orderseite (OrderSide.BUY oder OrderSide.SELL)
+    :param qty: Handelsmenge
+    :param mongo_url: MongoDB Verbindungs-URL
+    :return: Orderergebnis von der Alpaca API oder None bei verzögerter Ausführung
     """
+    # Hole aktuellen Kontostand
+    account = trading_client.get_account()
+    account_value = float(account.portfolio_value)
+    
+    # PDT-Status prüfen
+    pdt_allowed, pdt_message = check_pdt_status(mongo_url, symbol, side, account_value)
+    if not pdt_allowed:
+        logging.warning(f"Order für {symbol} wird verzögert: {pdt_message}")
+        queue_delayed_order(mongo_url, symbol, side, qty)
+        return None
+
     market_order_data = MarketOrderRequest(
         symbol=symbol,
         qty=qty,
         side=side,
         time_in_force=TimeInForce.DAY
     )
+    
     order = trading_client.submit_order(market_order_data)
     qty = round(qty, 3)
-    # Log trade details to MongoDB
+    
+    # Trade-Details in MongoDB protokollieren
     mongo_client = connect_to_mongo(mongo_url)
     db = mongo_client.trades
     db.paper.insert_one({
@@ -58,14 +72,12 @@ def place_order(trading_client, symbol, side, qty, mongo_url):
         'qty': qty,
         'side': side.name,
         'time_in_force': TimeInForce.DAY.name,
-        'time': datetime.now()
+        'time': datetime.now(ZoneInfo("America/New_York")),
+        'account_value': account_value  # Speichere den Kontostand zum Zeitpunkt des Trades
     })
-    #Track assets as well
-    db = mongo_client.trades
+    
+    # Assets ebenfalls tracken
     assets = db.assets_quantities
-    """
-    insert or subtract or delete based on what happened
-    """
     if side == OrderSide.BUY:
         assets.update_one({'symbol': symbol}, {'$inc': {'quantity': qty}}, upsert=True)
     elif side == OrderSide.SELL:
@@ -202,4 +214,175 @@ def dynamic_period_selector(ticker):
     
     optimal_period = min(volatility_scores, key=lambda x: x[1])[0] if volatility_scores else '1y'
     return optimal_period
+
+def check_pdt_status(mongo_url, symbol, side, account_value):
+    """
+    Überprüft den Pattern Day Trading (PDT) Status für ein Symbol.
+    Ein Day Trade ist ein Kauf und Verkauf (oder umgekehrt) desselben Symbols am selben Handelstag.
+    PDT-Regeln werden nur für Konten unter $25.000 angewendet.
+
+    :param mongo_url: MongoDB Verbindungs-URL
+    :param symbol: Das zu handelnde Symbol
+    :param side: Orderseite (Kauf oder Verkauf)
+    :param account_value: Aktueller Kontostand (Cash + Positionen)
+    :return: (bool, str) Tuple mit PDT-Status und Erklärung
+    """
+    # Wenn das Konto $25.000 oder mehr hat, PDT-Regeln nicht anwenden
+    if float(account_value) >= 25000:
+        return True, "Konto über $25.000 - PDT-Regeln nicht anwendbar"
+        
+    try:
+        mongo_client = connect_to_mongo(mongo_url)
+        db = mongo_client.trades
+        trades_collection = db.paper
+        
+        # Aktuelle Zeit in EST (US Eastern Time)
+        current_time = datetime.now(ZoneInfo("America/New_York"))
+        five_days_ago = current_time - timedelta(days=5)
+        
+        # Hole alle Trades der letzten 5 Tage für dieses Symbol
+        recent_trades = list(trades_collection.find({
+            'symbol': symbol,
+            'time': {'$gte': five_days_ago}
+        }).sort('time', 1))
+        
+        # Gruppiere Trades nach Handelstag
+        day_trades_count = 0
+        trades_by_day = {}
+        
+        for trade in recent_trades:
+            trade_date = trade['time'].date()
+            if trade_date not in trades_by_day:
+                trades_by_day[trade_date] = []
+            trades_by_day[trade_date].append(trade)
+        
+        # Zähle Day Trades
+        for date, trades in trades_by_day.items():
+            buys = [t for t in trades if t['side'] == 'BUY']
+            sells = [t for t in trades if t['side'] == 'SELL']
+            
+            # Ein Day Trade ist ein Paar von Kauf und Verkauf am selben Tag
+            day_trades_count += min(len(buys), len(sells))
+        
+        # Prüfe, ob der aktuelle Trade ein potenzieller Day Trade wäre
+        today = current_time.date()
+        if today in trades_by_day:
+            todays_trades = trades_by_day[today]
+            opposite_trades = [t for t in todays_trades if t['side'] != side.name]
+            if opposite_trades and day_trades_count >= 3:
+                return False, "PDT-Limit erreicht: Mehr als 3 Day Trades in 5 Tagen nicht erlaubt für Konten unter $25.000."
+        
+        return True, "PDT-Status OK"
+        
+    except Exception as e:
+        logging.error(f"Fehler bei der PDT-Statusprüfung: {e}")
+        return False, f"Fehler bei der PDT-Statusprüfung: {e}"
+    finally:
+        mongo_client.close()
+
+def queue_delayed_order(mongo_url, symbol, side, qty):
+    """
+    Speichert eine Order in der Warteschlange für den nächsten Handelstag.
+    
+    :param mongo_url: MongoDB Verbindungs-URL
+    :param symbol: Das zu handelnde Symbol
+    :param side: Orderseite (OrderSide.BUY oder OrderSide.SELL)
+    :param qty: Handelsmenge
+    """
+    try:
+        mongo_client = connect_to_mongo(mongo_url)
+        db = mongo_client.trades
+        delayed_orders = db.delayed_orders
+        
+        # Berechne das Ausführungsdatum (nächster Handelstag)
+        current_time = datetime.now(ZoneInfo("America/New_York"))
+        next_trading_day = current_time + timedelta(days=1)
+        # Wenn es Freitag ist, verschiebe auf Montag
+        if next_trading_day.weekday() >= 5:
+            days_to_add = 8 - next_trading_day.weekday()
+            next_trading_day = current_time + timedelta(days=days_to_add)
+            
+        delayed_orders.insert_one({
+            'symbol': symbol,
+            'qty': qty,
+            'side': side.name,
+            'created_at': current_time,
+            'execute_after': next_trading_day,
+            'status': 'pending'
+        })
+        
+        logging.info(f"Order für {symbol} wurde für den nächsten Handelstag ({next_trading_day.date()}) vorgemerkt")
+        
+    except Exception as e:
+        logging.error(f"Fehler beim Speichern der verzögerten Order: {e}")
+    finally:
+        mongo_client.close()
+
+def process_delayed_orders(trading_client, mongo_url):
+    """
+    Verarbeitet alle ausstehenden verzögerten Orders, die ausgeführt werden können.
+    
+    :param trading_client: Die Alpaca Trading Client Instanz
+    :param mongo_url: MongoDB Verbindungs-URL
+    """
+    try:
+        mongo_client = connect_to_mongo(mongo_url)
+        db = mongo_client.trades
+        delayed_orders = db.delayed_orders
+        
+        current_time = datetime.now(ZoneInfo("America/New_York"))
+        
+        # Hole alle fälligen Orders
+        pending_orders = delayed_orders.find({
+            'status': 'pending',
+            'execute_after': {'$lte': current_time}
+        })
+        
+        for order in pending_orders:
+            # Prüfe PDT-Status für jede Order
+            pdt_allowed, _ = check_pdt_status(mongo_url, order['symbol'], OrderSide[order['side']])
+            
+            if pdt_allowed:
+                try:
+                    # Führe die Order aus
+                    market_order_data = MarketOrderRequest(
+                        symbol=order['symbol'],
+                        qty=order['qty'],
+                        side=OrderSide[order['side']],
+                        time_in_force=TimeInForce.DAY
+                    )
+                    
+                    executed_order = trading_client.submit_order(market_order_data)
+                    
+                    # Aktualisiere den Order-Status
+                    delayed_orders.update_one(
+                        {'_id': order['_id']},
+                        {'$set': {
+                            'status': 'executed',
+                            'executed_at': current_time,
+                            'order_id': executed_order.id
+                        }}
+                    )
+                    
+                    logging.info(f"Verzögerte Order für {order['symbol']} wurde erfolgreich ausgeführt")
+                    
+                except Exception as e:
+                    logging.error(f"Fehler bei der Ausführung der verzögerten Order: {e}")
+                    
+            else:
+                # Verschiebe die Order um einen weiteren Tag
+                next_trading_day = current_time + timedelta(days=1)
+                if next_trading_day.weekday() >= 5:
+                    days_to_add = 8 - next_trading_day.weekday()
+                    next_trading_day = current_time + timedelta(days=days_to_add)
+                
+                delayed_orders.update_one(
+                    {'_id': order['_id']},
+                    {'$set': {'execute_after': next_trading_day}}
+                )
+                
+    except Exception as e:
+        logging.error(f"Fehler bei der Verarbeitung verzögerter Orders: {e}")
+    finally:
+        mongo_client.close()
 
