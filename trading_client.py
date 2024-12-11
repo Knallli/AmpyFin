@@ -97,6 +97,7 @@ def weighted_majority_decision_and_median_quantity(decisions_and_quantities):
     elif sell_weight > buy_weight and sell_weight > hold_weight:
         return 'sell', median(weighted_sell_quantities) if weighted_sell_quantities else 0, buy_weight, sell_weight, hold_weight
     else:
+        logging.debug(f"Decision: hold | Weights: Buy: {buy_weight}, Sell: {sell_weight}, Hold: {hold_weight}")
         return 'hold', 0, buy_weight, sell_weight, hold_weight
 
 def main():
