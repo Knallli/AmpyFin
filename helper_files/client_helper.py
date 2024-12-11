@@ -12,12 +12,7 @@ from urllib.request import urlopen
 import json
 import certifi
 from zoneinfo import ZoneInfo
-import time as time_module  # Umbenennen des time Moduls
-from time import time  # Importiere nur die time Funktion
-from functools import lru_cache
-import random
-import requests.adapters
-import urllib3
+import time
 
 overlap_studies = [BBANDS_indicator, DEMA_indicator, EMA_indicator, HT_TRENDLINE_indicator, KAMA_indicator, MA_indicator, MAMA_indicator, MAVP_indicator, MIDPOINT_indicator, MIDPRICE_indicator, SAR_indicator, SAREXT_indicator, SMA_indicator, T3_indicator, TEMA_indicator, TRIMA_indicator, WMA_indicator]
 momentum_indicators = [ADX_indicator, ADXR_indicator, APO_indicator, AROON_indicator, AROONOSC_indicator, BOP_indicator, CCI_indicator, CMO_indicator, DX_indicator, MACD_indicator, MACDEXT_indicator, MACDFIX_indicator, MFI_indicator, MINUS_DI_indicator, MINUS_DM_indicator, MOM_indicator, PLUS_DI_indicator, PLUS_DM_indicator, PPO_indicator, ROC_indicator, ROCP_indicator, ROCR_indicator, ROCR100_indicator, RSI_indicator, STOCH_indicator, STOCHF_indicator, STOCHRSI_indicator, TRIX_indicator, ULTOSC_indicator, WILLR_indicator]
@@ -29,13 +24,6 @@ pattern_recognition = [CDL2CROWS_indicator, CDL3BLACKCROWS_indicator, CDL3INSIDE
 statistical_functions = [BETA_indicator, CORREL_indicator, LINEARREG_indicator, LINEARREG_ANGLE_indicator, LINEARREG_INTERCEPT_indicator, LINEARREG_SLOPE_indicator, STDDEV_indicator, TSF_indicator, VAR_indicator]
 
 strategies = overlap_studies + momentum_indicators + volume_indicators + cycle_indicators + price_transforms + volatility_indicators + pattern_recognition + statistical_functions
-
-# Konfiguriere den Connection Pool
-urllib3.PoolManager(maxsize=50)
-session = requests.Session()
-adapter = requests.adapters.HTTPAdapter(pool_connections=20, pool_maxsize=20)
-session.mount('http://', adapter)
-session.mount('https://', adapter)
 
 # MongoDB connection helper
 def connect_to_mongo(mongo_url):
@@ -183,58 +171,21 @@ def market_status(polygon_client):
         return "error"
 
 # Helper to get latest price
-from time import time
-from functools import wraps
-
-def timed_lru_cache(seconds: int, maxsize: int = 128):
-    def wrapper_decorator(func):
-        func = lru_cache(maxsize=maxsize)(func)
-        func.lifetime = seconds
-        func.expiration = time() + seconds
-
-        @wraps(func)
-        def wrapped_func(*args, **kwargs):
-            if time() >= func.expiration:
-                func.cache_clear()
-                func.expiration = time() + func.lifetime
-            return func(*args, **kwargs)
-
-        return wrapped_func
-
-    return wrapper_decorator
-
-@timed_lru_cache(seconds=60, maxsize=100)
 def get_latest_price(ticker):  
-    """  
-    Fetch the latest price for a given stock ticker using yfinance with retry logic.  
-    
-    :param ticker: The stock ticker symbol  
-    :return: The latest price of the stock  
-    """  
-    max_retries = 3
-    retry_delay = 1
-    
-    for attempt in range(max_retries):
-        try:
-            # Add random delay between requests
-            time_module.sleep(random.uniform(0.1, 0.5))  # Verwende time_module.sleep statt time.sleep
-            
-            ticker_yahoo = yf.Ticker(ticker)
-            ticker_yahoo.session = session  # Use our custom session
-            data = ticker_yahoo.history()
-            
-            if not data.empty:
-                return round(data['Close'].iloc[-1], 2)
-            
-        except Exception as e:
-            if attempt == max_retries - 1:
-                logging.error(f"Final error fetching price for {ticker}: {e}")
-                return None
-                
-            logging.warning(f"Error fetching price for {ticker} (attempt {attempt + 1}): {e}")
-            time_module.sleep(retry_delay * (attempt + 1))  # Verwende time_module.sleep statt time.sleep
-    
-    return None
+   """  
+   Fetch the latest price for a given stock ticker using yfinance.  
+  
+   :param ticker: The stock ticker symbol  
+   :return: The latest price of the stock  
+   """  
+   try:  
+      ticker_yahoo = yf.Ticker(ticker)  
+      data = ticker_yahoo.history()  
+      return round(data['Close'].iloc[-1], 2)  
+   except Exception as e:  
+      logging.error(f"Error fetching latest price for {ticker}: {e}")  
+      return None
+   
 
 def dynamic_period_selector(ticker):
     """
