@@ -73,13 +73,21 @@ def place_order(trading_client, symbol, side, qty, mongo_url):
         'side': side.name,
         'time_in_force': TimeInForce.DAY.name,
         'time': datetime.now(ZoneInfo("America/New_York")),
-        'account_value': account_value  # Speichere den Kontostand zum Zeitpunkt des Trades
+        'account_value': account_value,
+        'price': current_price  # Speichere den aktuellen Preis
     })
     
     # Assets ebenfalls tracken
     assets = db.assets_quantities
     if side == OrderSide.BUY:
-        assets.update_one({'symbol': symbol}, {'$inc': {'quantity': qty}}, upsert=True)
+        assets.update_one(
+            {'symbol': symbol}, 
+            {
+                '$inc': {'quantity': qty},
+                '$set': {'buy_price': current_price}  # Speichere den Einkaufspreis
+            }, 
+            upsert=True
+        )
     elif side == OrderSide.SELL:
         assets.update_one({'symbol': symbol}, {'$inc': {'quantity': -qty}}, upsert=True)
         if assets.find_one({'symbol': symbol})['quantity'] == 0:

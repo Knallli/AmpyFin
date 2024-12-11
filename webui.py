@@ -62,6 +62,38 @@ def read_root():
                 </select>
                 <button onclick="startSimulation()">Start Simulation</button>
                 <div id="simulationOutput"></div>
+                <h2>Trading Decisions</h2>
+                <div class="decisions-list">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th onclick="sortDecisionsTable(0)">Time</th>
+                                <th onclick="sortDecisionsTable(1)">Ticker</th>
+                                <th onclick="sortDecisionsTable(2)">Action</th>
+                                <th onclick="sortDecisionsTable(3)">Quantity</th>
+                                <th onclick="sortDecisionsTable(4)">Price</th>
+                                <th onclick="sortDecisionsTable(5)">Strategy</th>
+                                <th onclick="sortDecisionsTable(6)">Weight</th>
+                            </tr>
+                        </thead>
+                        <tbody id="decisionsList"></tbody>
+                    </table>
+                </div>
+                <h2>Current Positions</h2>
+                <div class="positions-list">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th onclick="sortPositionsTable(0)">Symbol</th>
+                                <th onclick="sortPositionsTable(1)">Quantity</th>
+                                <th onclick="sortPositionsTable(2)">Buy Price</th>
+                                <th onclick="sortPositionsTable(3)">Current Price</th>
+                                <th onclick="sortPositionsTable(4)">Profit/Loss %</th>
+                            </tr>
+                        </thead>
+                        <tbody id="positionsList"></tbody>
+                    </table>
+                </div>
             </div>
             <script>
                 function fetchRankings() {
@@ -150,8 +182,62 @@ def read_root():
                     }
                 }
 
+                function fetchDecisions() {
+                    fetch('/decisions')
+                        .then(response => response.json())
+                        .then(data => {
+                            const decisionsList = document.getElementById('decisionsList');
+                            decisionsList.innerHTML = '';
+                            data.forEach(item => {
+                                const row = document.createElement('tr');
+                                row.innerHTML = `
+                                    <td>${item.timestamp}</td>
+                                    <td>${item.ticker}</td>
+                                    <td>${item.action}</td>
+                                    <td>${item.quantity}</td>
+                                    <td>${item.price}</td>
+                                    <td>${item.strategy}</td>
+                                    <td>${item.weight}</td>
+                                `;
+                                decisionsList.appendChild(row);
+                            });
+                        });
+                }
+
+                function sortDecisionsTable(n) {
+                    // ... similar to existing sortTable function ...
+                }
+
+                function fetchPositions() {
+                    fetch('/positions')
+                        .then(response => response.json())
+                        .then(data => {
+                            const positionsList = document.getElementById('positionsList');
+                            positionsList.innerHTML = '';
+                            data.forEach(item => {
+                                const row = document.createElement('tr');
+                                row.innerHTML = `
+                                    <td>${item.symbol}</td>
+                                    <td>${item.quantity}</td>
+                                    <td>${item.buy_price}</td>
+                                    <td>${item.current_price}</td>
+                                    <td style="color: ${item.profit_loss >= 0 ? 'green' : 'red'}">${item.profit_loss}%</td>
+                                `;
+                                positionsList.appendChild(row);
+                            });
+                        });
+                }
+
+                function sortPositionsTable(n) {
+                    // ... similar to existing sortTable function ...
+                }
+
                 setInterval(fetchRankings, 5000); // Fetch rankings every 5 seconds
                 fetchRankings(); // Initial fetch
+                setInterval(fetchDecisions, 5000); // Fetch decisions every 5 seconds
+                fetchDecisions(); // Initial fetch
+                setInterval(fetchPositions, 5000); // Fetch positions every 5 seconds
+                fetchPositions(); // Initial fetch
             </script>
         </body>
     </html>
@@ -216,6 +302,50 @@ def simulate(ticker: str, timeframe: str):
         })
 
     return JSONResponse(content=results)
+
+@app.get("/decisions", response_class=JSONResponse)
+def get_decisions():
+    client = MongoClient(mongo_url)
+    db = client.trading_simulator
+    decisions = db.trade_decisions.find().sort("timestamp", -1).limit(100)  # Get last 100 decisions
+    
+    formatted_decisions = []
+    for decision in decisions:
+        formatted_decisions.append({
+            "timestamp": decision["timestamp"].strftime('%Y-%m-%d %H:%M:%S'),
+            "ticker": decision["ticker"],
+            "action": decision["action"],
+            "quantity": decision["quantity"],
+            "price": decision["price"],
+            "strategy": decision["strategy"],
+            "weight": decision.get("weight", "N/A")  # Include weight if available
+        })
+    
+    client.close()
+    return JSONResponse(content=formatted_decisions)
+
+@app.get("/positions", response_class=JSONResponse)
+def get_positions():
+    client = MongoClient(mongo_url)
+    db = client.trades
+    positions = db.assets_quantities.find()
+    
+    formatted_positions = []
+    for pos in positions:
+        # Get current price
+        current_price = get_latest_price(pos['symbol'])
+        profit_loss = ((current_price - pos.get('buy_price', 0)) / pos.get('buy_price', 1)) * 100 if pos.get('buy_price') else 0
+        
+        formatted_positions.append({
+            "symbol": pos['symbol'],
+            "quantity": pos['quantity'],
+            "buy_price": pos.get('buy_price', 'N/A'),
+            "current_price": current_price,
+            "profit_loss": round(profit_loss, 2)
+        })
+    
+    client.close()
+    return JSONResponse(content=formatted_positions)
 
 if __name__ == "__main__":
     logging.basicConfig(filename='system.log', level=logging.INFO, format='%(asctime)s - %(message)s')
