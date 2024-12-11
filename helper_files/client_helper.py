@@ -12,7 +12,8 @@ from urllib.request import urlopen
 import json
 import certifi
 from zoneinfo import ZoneInfo
-import time
+import time as time_module  # Umbenennen des time Moduls
+from time import time  # Importiere nur die time Funktion
 from functools import lru_cache
 import random
 import requests.adapters
@@ -216,7 +217,7 @@ def get_latest_price(ticker):
     for attempt in range(max_retries):
         try:
             # Add random delay between requests
-            time.sleep(random.uniform(0.1, 0.5))
+            time_module.sleep(random.uniform(0.1, 0.5))  # Verwende time_module.sleep statt time.sleep
             
             ticker_yahoo = yf.Ticker(ticker)
             ticker_yahoo.session = session  # Use our custom session
@@ -231,7 +232,7 @@ def get_latest_price(ticker):
                 return None
                 
             logging.warning(f"Error fetching price for {ticker} (attempt {attempt + 1}): {e}")
-            time.sleep(retry_delay * (attempt + 1))  # Exponential backoff
+            time_module.sleep(retry_delay * (attempt + 1))  # Verwende time_module.sleep statt time.sleep
     
     return None
 
