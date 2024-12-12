@@ -37,7 +37,7 @@ logging.basicConfig(
     ]
 )
 
-BUYING_POWER_THRESHOLD = 1000  # Minimum buying power to place an order
+BUYING_POWER_THRESHOLD = 500  # Minimum buying power to place an order
 PORTFOLIO_RATIO_THRESHOLD = 0.5 # % of portfolio value
 
 def weighted_majority_decision_and_median_quantity(decisions_and_quantities):  
