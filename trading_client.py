@@ -37,6 +37,8 @@ logging.basicConfig(
     ]
 )
 
+BUYING_POWER_THRESHOLD = 1000  # Minimum buying power to place an order
+PORTFOLIO_RATIO_THRESHOLD = 0.5 # % of portfolio value
 
 def weighted_majority_decision_and_median_quantity(decisions_and_quantities):  
     """  
@@ -180,7 +182,7 @@ def main():
                     for bear: 5000
                     """
                     
-                    if decision == "buy" and float(account.cash) > 15000 and (((quantity + portfolio_qty) * current_price) / portfolio_value) < 0.1:
+                    if decision == "buy" and float(account.cash) > BUYING_POWER_THRESHOLD and (((quantity + portfolio_qty) * current_price) / portfolio_value) < PORTFOLIO_RATIO_THRESHOLD:
                         
                         heapq.heappush(buy_heap, (-(buy_weight-(sell_weight + (hold_weight * 0.5))), quantity, ticker))
                     elif decision == "sell" and portfolio_qty > 0:
@@ -199,7 +201,7 @@ def main():
                     logging.error(f"Error processing {ticker}: {e}")
 
             
-            while buy_heap and float(account.cash) > 15000:  
+            while buy_heap and float(account.cash) > BUYING_POWER_THRESHOLD:  
                 try:
                     buy_coeff, quantity, ticker = heapq.heappop(buy_heap)
                     print(f"Executing BUY order for {ticker}")
