@@ -2,7 +2,7 @@ polygon-api-client
 pymongo
 certifi
 alpaca-py
-yfinance
+yfinance[nospam]
 scipy
 pandas
 cython
@@ -15,3 +15,5 @@ PyWavelets
 ripser
 datetime
 pandas-ta
+requests-cache
+requests-ratelimiter
