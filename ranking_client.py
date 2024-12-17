@@ -63,46 +63,44 @@ logging.basicConfig(
 )
 
 def process_ticker(ticker, mongo_client):
-   try:
-      
-      current_price = None
-      historical_data = None
-      while current_price is None:
-         try:
-            current_price = get_latest_price(ticker)
-         except Exception as fetch_error:
-            logging.warning(f"Error fetching price for {ticker}. Retrying... {fetch_error}")
-            time.sleep(10)
-      while historical_data is None:
-         try:
-            
-            historical_data = get_data(ticker)
-         except Exception as fetch_error:
-            logging.warning(f"Error fetching historical data for {ticker}. Retrying... {fetch_error}")
-            time.sleep(10)
+    try:
+        current_price = None
+        historical_data = None
+        while current_price is None:
+            try:
+                current_price = get_latest_price(ticker)
+                if current_price is None:
+                    raise ValueError(f"No price data found for {ticker}")
+            except Exception as fetch_error:
+                logging.warning(f"Error fetching price for {ticker}. Retrying... {fetch_error}")
+                time.sleep(10)
+        while historical_data is None:
+            try:
+                #period = dynamic_period_selector(ticker)
+                historical_data = get_data(ticker)#, period)
+            except Exception as fetch_error:
+                logging.warning(f"Error fetching historical data for {ticker}. Retrying... {fetch_error}")
+                time.sleep(10)
 
-      for strategy in strategies:
-            
-         db = mongo_client.trading_simulator  
-         holdings_collection = db.algorithm_holdings
-         print(f"Processing {strategy.__name__} for {ticker}")
-         strategy_doc = holdings_collection.find_one({"strategy": strategy.__name__})
-         if not strategy_doc:
-            logging.warning(f"Strategy {strategy.__name__} not found in database. Skipping.")
-            continue
+        for strategy in strategies:
+            db = mongo_client.trading_simulator  
+            holdings_collection = db.algorithm_holdings
+            logging.debug(f"Processing {strategy.__name__} for {ticker}")
+            print(f"Processing {strategy.__name__} for {ticker}")
+            strategy_doc = holdings_collection.find_one({"strategy": strategy.__name__})
+            if not strategy_doc:
+                logging.warning(f"Strategy {strategy.__name__} not found in database. Skipping.")
+                continue
 
-         account_cash = strategy_doc["amount_cash"]
-         total_portfolio_value = strategy_doc["portfolio_value"]
+            account_cash = strategy_doc["amount_cash"]
+            total_portfolio_value = strategy_doc["portfolio_value"]
+            portfolio_qty = strategy_doc["holdings"].get(ticker, {}).get("quantity", 0)
 
-         
-         portfolio_qty = strategy_doc["holdings"].get(ticker, {}).get("quantity", 0)
-
-         simulate_trade(ticker, strategy, historical_data, current_price,
-                        account_cash, portfolio_qty, total_portfolio_value, mongo_client)
-         
-      print(f"{ticker} processing completed.")
-   except Exception as e:
-      logging.error(f"Error in thread for {ticker}: {e}")
+            simulate_trade(ticker, strategy, historical_data, current_price,
+                           account_cash, portfolio_qty, total_portfolio_value, mongo_client)
+        print(f"{ticker} processing completed.")
+    except Exception as e:
+        logging.error(f"Error processing ticker {ticker}: {e}")
 
 def simulate_trade(ticker, strategy, historical_data, current_price, account_cash, portfolio_qty, total_portfolio_value, mongo_client):
    """
