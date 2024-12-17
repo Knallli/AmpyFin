@@ -277,7 +277,7 @@ def update_portfolio_values(client):
       holdings_collection.update_one({"strategy": strategy_doc["strategy"]}, {"$set": {"portfolio_value": portfolio_value}}, upsert=True)
 
    # Update MongoDB with the modified strategy documents
-   client.close()
+   logging.debug("Portfolio values updated.")
 
 def update_ranks(client):
    """"
@@ -311,7 +311,8 @@ def update_ranks(client):
       _, _, _, strategy_name = heapq.heappop(q)
       rank_collection.insert_one({"strategy": strategy_name, "rank": rank})
       rank+=1
-   client.close()
+
+   logging.debug("Ranks updated.")
 
 def main():  
    """  
@@ -375,8 +376,7 @@ def main():
         logging.info("Market is closed. Waiting for 60 seconds.")
         time.sleep(60)  
       else:  
-        logging.error("An error occurred while checking market status.") 
-        mongo_client.close() 
+        logging.error("An error occurred while checking market status.")  
         time.sleep(60)
       
    
