@@ -1,5 +1,5 @@
 from polygon import RESTClient
-from config import POLYGON_API_KEY, FINANCIAL_PREP_API_KEY, MONGO_DB_USER, MONGO_DB_PASS, API_KEY, API_SECRET, BASE_URL, mongo_url
+from config import POLYGON_API_KEY, FINANCIAL_PREP_API_KEY, MONGO_DB_USER, MONGO_DB_PASS, API_KEY, API_SECRET, BASE_URL, mongo_url, MIN_ACCOUNT_LIQUIDITY, MAX_PORTFOLIO_PERCENTAGE
 import json
 import certifi
 from urllib.request import urlopen
@@ -37,8 +37,6 @@ logging.basicConfig(
     ]
 )
 
-BUYING_POWER_THRESHOLD = 500  # Minimum buying power to place an order
-PORTFOLIO_RATIO_THRESHOLD = 0.5 # % of portfolio value
 
 def weighted_majority_decision_and_median_quantity(decisions_and_quantities):  
     """  
@@ -145,8 +143,7 @@ def main():
                     historical_data = None
                     while historical_data is None:
                         try:
-                            period = dynamic_period_selector(ticker)
-                            historical_data = get_data(ticker, period)
+                            historical_data = get_data(ticker)
                         except:
                             print(f"Error fetching data for {ticker}. Retrying...")
                     
@@ -181,7 +178,7 @@ def main():
                     for bear: 5000
                     """
                     
-                    if decision == "buy" and float(account.cash) > BUYING_POWER_THRESHOLD and (((quantity + portfolio_qty) * current_price) / portfolio_value) < PORTFOLIO_RATIO_THRESHOLD:
+                    if decision == "buy" and float(account.cash) > MIN_ACCOUNT_LIQUIDITY and (((quantity + portfolio_qty) * current_price) / portfolio_value) < MAX_PORTFOLIO_PERCENTAGE:
                         
                         heapq.heappush(buy_heap, (-(buy_weight-(sell_weight + (hold_weight * 0.5))), quantity, ticker))
                     elif decision == "sell" and portfolio_qty > 0:
@@ -200,7 +197,7 @@ def main():
                     logging.error(f"Error processing {ticker}: {e}")
 
             
-            while buy_heap and float(account.cash) > BUYING_POWER_THRESHOLD:  
+            while buy_heap and float(account.cash) > MIN_ACCOUNT_LIQUIDITY:  
                 try:
                     buy_coeff, quantity, ticker = heapq.heappop(buy_heap)
                     print(f"Executing BUY order for {ticker}")
