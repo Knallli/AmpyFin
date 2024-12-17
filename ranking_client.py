@@ -375,9 +375,10 @@ def main():
         logging.info("Market is closed. Waiting for 60 seconds.")
         time.sleep(60)  
       else:  
-        logging.error("An error occurred while checking market status.")  
+        logging.error("An error occurred while checking market status.") 
+        mongo_client.close() 
         time.sleep(60)
-      mongo_client.close()
+      
    
   
 if __name__ == "__main__":  
