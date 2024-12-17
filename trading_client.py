@@ -145,7 +145,7 @@ def main():
                         try:
                             historical_data = get_data(ticker)
                         except:
-                            print(f"Error fetching data for {ticker}. Retrying...")
+                            logging.error(f"Error fetching data for {ticker}. Retrying...")
                     
                     
                     current_price = None
@@ -153,13 +153,13 @@ def main():
                         try:
                             current_price = get_latest_price(ticker)
                         except:
-                            print(f"Error fetching price for {ticker}. Retrying...")
+                            logging.error(f"Error fetching price for {ticker}. Retrying...")
                             time.sleep(10)
-                    print(f"Current price of {ticker}: {current_price}")
+                    logging.debug(f"Current price of {ticker}: {current_price}")
 
                     asset_info = asset_collection.find_one({'symbol': ticker})
                     portfolio_qty = asset_info['quantity'] if asset_info else 0.0
-                    print(f"Portfolio quantity for {ticker}: {portfolio_qty}")
+                    logging.debug(f"Portfolio quantity for {ticker}: {portfolio_qty}")
                     """
                     use weight from each strategy to determine how much each decision will be weighed. weights will be in decimal
                     """
@@ -171,7 +171,7 @@ def main():
                         
                         decisions_and_quantities.append((decision, quantity, weight))
                     decision, quantity, buy_weight, sell_weight, hold_weight = weighted_majority_decision_and_median_quantity(decisions_and_quantities)
-                    print(f"Ticker: {ticker}, Decision: {decision}, Quantity: {quantity}, Weights: Buy: {buy_weight}, Sell: {sell_weight}, Hold: {hold_weight}")
+                    logging.info(f"Ticker: {ticker}, Decision: {decision}, Quantity: {quantity}, Weights: Buy: {buy_weight}, Sell: {sell_weight}, Hold: {hold_weight}")
                     """
                     later we should implement buying_power regulator depending on vix strategy
                     for now in bull: 15000
@@ -182,7 +182,7 @@ def main():
                         
                         heapq.heappush(buy_heap, (-(buy_weight-(sell_weight + (hold_weight * 0.5))), quantity, ticker))
                     elif decision == "sell" and portfolio_qty > 0:
-                        print(f"Executing SELL order for {ticker}")
+                        logging.info(f"Executing SELL order for {ticker}")
                         
                         
                         order = place_order(trading_client, ticker, OrderSide.SELL, qty=quantity, mongo_url=mongo_url)  # Place order using helper
@@ -190,7 +190,7 @@ def main():
                         logging.info(f"Executed SELL order for {ticker}: {order}")
                         
                     else:
-                        logging.info(f"Holding for {ticker}, no action taken.")
+                        logging.info(f"Decision was {decision} for {ticker}, no action taken.")
                     
 
                 except Exception as e:
@@ -200,7 +200,7 @@ def main():
             while buy_heap and float(account.cash) > MIN_ACCOUNT_LIQUIDITY:  
                 try:
                     buy_coeff, quantity, ticker = heapq.heappop(buy_heap)
-                    print(f"Executing BUY order for {ticker}")
+                    logging.info(f"Executing BUY order for {ticker}")
                     
                     order = place_order(trading_client, ticker, OrderSide.BUY, qty=quantity, mongo_url=mongo_url)  # Place order using helper
                     
@@ -211,11 +211,11 @@ def main():
                     
                     
                 except:
-                    print("Error occurred while executing buy order. Continuing...")
+                    logging.error("Error occurred while executing buy order. Continuing...")
                     break
             
                 
-            print("Sleeping for 60 seconds...")
+            logging.info("Sleeping for 60 seconds...")
             time.sleep(60)
 
         elif status == "early_hours":
