@@ -204,20 +204,4 @@ def dynamic_period_selector(ticker):
             if data.empty:
                 continue
             
-            # Calculate metrics for decision-making
-            daily_changes = data['Close'].pct_change().dropna()
-            volatility = daily_changes.std()
-            trend_strength = abs(data['Close'].iloc[-1] - data['Close'].iloc[0]) / data['Close'].iloc[0]
-            
-            # Combine metrics into a single score (weight them as desired)
-            score = volatility * 0.7 + trend_strength * 0.3
-            volatility_scores.append((period, score))
-        except Exception as e:
-            print(f"Error fetching data for period {period}: {e}")
-            continue
-
-    # Select the period with the highest score
-    
-    optimal_period = min(volatility_scores, key=lambda x: x[1])[0] if volatility_scores else '1y'
-    return optimal_period
-
+ 

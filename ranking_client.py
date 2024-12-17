@@ -71,6 +71,7 @@ def process_ticker(ticker, mongo_client):
                 current_price = get_latest_price(ticker)
                 if current_price is None:
                     raise ValueError(f"No price data found for {ticker}")
+                logging.debug(f"Current price of {ticker}: {current_price}")
             except Exception as fetch_error:
                 logging.warning(f"Error fetching price for {ticker}. Retrying... {fetch_error}")
                 time.sleep(10)
@@ -85,8 +86,7 @@ def process_ticker(ticker, mongo_client):
         for strategy in strategies:
             db = mongo_client.trading_simulator  
             holdings_collection = db.algorithm_holdings
-            logging.debug(f"Processing {strategy.__name__} for {ticker}")
-            print(f"Processing {strategy.__name__} for {ticker}")
+            logging.info(f"Processing {strategy.__name__} for {ticker}")
             strategy_doc = holdings_collection.find_one({"strategy": strategy.__name__})
             if not strategy_doc:
                 logging.warning(f"Strategy {strategy.__name__} not found in database. Skipping.")
@@ -98,7 +98,7 @@ def process_ticker(ticker, mongo_client):
 
             simulate_trade(ticker, strategy, historical_data, current_price,
                            account_cash, portfolio_qty, total_portfolio_value, mongo_client)
-        print(f"{ticker} processing completed.")
+        logging.info(f"{ticker} processing completed.")
     except Exception as e:
         logging.error(f"Error processing ticker {ticker}: {e}")
 
@@ -108,7 +108,7 @@ def simulate_trade(ticker, strategy, historical_data, current_price, account_cas
    """
     
    # Simulate trading action from strategy
-   print(f"Simulating trade for {ticker} with strategy {strategy.__name__} and quantity of {portfolio_qty}")
+   logging.info(f"Simulating trade for {ticker} with strategy {strategy.__name__} and quantity of {portfolio_qty}")
    action, quantity = simulate_strategy(strategy, ticker, current_price, historical_data, account_cash, portfolio_qty, total_portfolio_value)
    
    # MongoDB setup
@@ -242,7 +242,7 @@ def simulate_trade(ticker, strategy, historical_data, current_price, account_cas
         
    else:
       logging.info(f"Action: {action} | Ticker: {ticker} | Quantity: {quantity} | Price: {current_price}")
-   print(f"Action: {action} | Ticker: {ticker} | Quantity: {quantity} | Price: {current_price}")
+   #print(f"Action: {action} | Ticker: {ticker} | Quantity: {quantity} | Price: {current_price}")
    # Close the MongoDB connection
 
 def update_portfolio_values(client):
@@ -266,8 +266,8 @@ def update_portfolio_values(client):
             try:
                current_price = get_latest_price(ticker)
             except:
-               print(f"Error fetching price for {ticker}. Retrying...")
-          print(f"Current price of {ticker}: {current_price}")
+               logging.warning(f"Error fetching price for {ticker}. Retrying...")
+          logging.debug(f"Current price of {ticker}: {current_price} called from update_portfolio_values")
           # Calculate the value of the holding
           holding_value = holding["quantity"] * current_price
           # Add the holding value to the portfolio value
@@ -370,15 +370,3 @@ def main():
             
             
             #Update ranks
-            update_portfolio_values(mongo_client)
-            update_ranks(mongo_client)
-        logging.info("Market is closed. Waiting for 60 seconds.")
-        time.sleep(60)  
-      else:  
-        logging.error("An error occurred while checking market status.")  
-        time.sleep(60)
-      mongo_client.close()
-   
-  
-if __name__ == "__main__":  
-   main()

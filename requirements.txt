@@ -14,6 +14,4 @@ stats
 PyWavelets
 ripser
 datetime
-pandas-ta
-requests-cache
-requests-ratelimiter
+p
