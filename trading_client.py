@@ -145,9 +145,8 @@ def main():
                     historical_data = None
                     while historical_data is None:
                         try:
-                            
-
-                            historical_data = get_data(ticker)
+                            period = dynamic_period_selector(ticker)
+                            historical_data = get_data(ticker, period)
                         except:
                             print(f"Error fetching data for {ticker}. Retrying...")
                     

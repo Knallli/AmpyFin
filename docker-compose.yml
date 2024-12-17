@@ -2,12 +2,9 @@ services:
   webui:
     build:
       context: .
-      args:
-        PYTHON_VERSION: 3.11
     ports:
       - "8000:8000"
     volumes:
-      - .:/app
       - ./config.py:/app/config.py
     command: >
       sh -c "
@@ -16,11 +13,9 @@ services:
   ranking:
     build:
       context: .
-      args:
-        PYTHON_VERSION: 3.11
     volumes:
-      - .:/app
       - ./config.py:/app/config.py
+      - ./rank_system.log:/app/rank_system.log
     command: >
       sh -c "
       cd /app && git pull && python /app/ranking_client.py"
@@ -28,11 +23,9 @@ services:
   trading:
     build:
       context: .
-      args:
-        PYTHON_VERSION: 3.11
     volumes:
-      - .:/app
       - ./config.py:/app/config.py
+      - ./system.log:/app/system.log
     command: >
       sh -c "
       cd /app && git pull && python /app/trading_client.py"

@@ -75,8 +75,8 @@ def process_ticker(ticker, mongo_client):
             time.sleep(10)
       while historical_data is None:
          try:
-            
-            historical_data = get_data(ticker)
+            period = dynamic_period_selector(ticker)
+            historical_data = get_data(ticker, period)
          except Exception as fetch_error:
             logging.warning(f"Error fetching historical data for {ticker}. Retrying... {fetch_error}")
             time.sleep(10)
