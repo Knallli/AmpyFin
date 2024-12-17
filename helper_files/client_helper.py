@@ -152,19 +152,21 @@ def market_status(polygon_client):
 
 # Helper to get latest price
 def get_latest_price(ticker):  
-   """  
-   Fetch the latest price for a given stock ticker using yfinance.  
+    """  
+    Fetch the latest price for a given stock ticker using yfinance.  
   
-   :param ticker: The stock ticker symbol  
-   :return: The latest price of the stock  
-   """  
-   try:  
-      ticker_yahoo = yf.Ticker(ticker)  
-      data = ticker_yahoo.history()  
-      return round(data['Close'].iloc[-1], 2)  
-   except Exception as e:  
-      logging.error(f"Error fetching latest price for {ticker}: {e}")  
-      return None
+    :param ticker: The stock ticker symbol  
+    :return: The latest price of the stock  
+    """  
+    try:  
+        ticker_yahoo = yf.Ticker(ticker)  
+        data = ticker_yahoo.history(period="1d")  # Fetch only the latest day's data
+        if data.empty:
+            raise ValueError(f"No price data found for {ticker}")
+        return round(data['Close'].iloc[-1], 2)  
+    except Exception as e:  
+        logging.error(f"Error fetching latest price for {ticker}: {e}")  
+        return None
    
 
 def dynamic_period_selector(ticker):
