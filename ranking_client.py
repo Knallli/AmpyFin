@@ -371,4 +371,14 @@ def main():
             
             #Update ranks
             update_portfolio_values(mongo_client)
-            update_ranks(mon
+            update_ranks(mongo_client)
+        logging.info("Market is closed. Waiting for 60 seconds.")
+        time.sleep(60)  
+      else:  
+        logging.error("An error occurred while checking market status.")  
+        time.sleep(60)
+      mongo_client.close()
+   
+  
+if __name__ == "__main__":  
+   main()
