@@ -1,0 +1,31 @@
+services:
+  webui:
+    build:
+      context: .
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./config.py:/app/config.py
+    command: >
+      sh -c "
+      cd /app && git pull && python /app/webui.py"
+
+  ranking:
+    build:
+      context: .
+    volumes:
+      - ./config.py:/app/config.py
+      - ./rank_system.log:/app/rank_system.log
+    command: >
+      sh -c "
+      cd /app && git pull && python /app/ranking_client.py"
+
+  trading:
+    build:
+      context: .
+    volumes:
+      - ./config.py:/app/config.py
+      - ./system.log:/app/system.log
+    command: >
+      sh -c "
+      cd /app && git pull && python /app/trading_client.py"

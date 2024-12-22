@@ -3,3 +3,6 @@ config.py
 .env
 .vscode/
 **/__pycache__/
+.DS_Store
+data/*
+.venv/

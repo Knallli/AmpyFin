@@ -1,5 +1,5 @@
 from polygon import RESTClient
-from config import POLYGON_API_KEY, FINANCIAL_PREP_API_KEY, MONGO_DB_USER, MONGO_DB_PASS, API_KEY, API_SECRET, BASE_URL, mongo_url
+from config import POLYGON_API_KEY, FINANCIAL_PREP_API_KEY, MONGO_DB_USER, MONGO_DB_PASS, API_KEY, API_SECRET, BASE_URL, mongo_url, MIN_ACCOUNT_LIQUIDITY, MAX_PORTFOLIO_PERCENTAGE
 import json
 import certifi
 from urllib.request import urlopen
@@ -147,11 +147,9 @@ def main():
                     historical_data = None
                     while historical_data is None:
                         try:
-                            
-
                             historical_data = get_data(ticker)
                         except:
-                            print(f"Error fetching data for {ticker}. Retrying...")
+                            logging.error(f"Error fetching data for {ticker}. Retrying...")
                     
                     
                     current_price = None
@@ -159,13 +157,13 @@ def main():
                         try:
                             current_price = get_latest_price(ticker)
                         except:
-                            print(f"Error fetching price for {ticker}. Retrying...")
+                            logging.error(f"Error fetching price for {ticker}. Retrying...")
                             time.sleep(10)
-                    print(f"Current price of {ticker}: {current_price}")
+                    logging.debug(f"Current price of {ticker}: {current_price}")
 
                     asset_info = asset_collection.find_one({'symbol': ticker})
                     portfolio_qty = asset_info['quantity'] if asset_info else 0.0
-                    print(f"Portfolio quantity for {ticker}: {portfolio_qty}")
+                    logging.debug(f"Portfolio quantity for {ticker}: {portfolio_qty}")
                     """
                     use weight from each strategy to determine how much each decision will be weighed. weights will be in decimal
                     """
@@ -184,18 +182,18 @@ def main():
                         
 
                         heapq.heappush(suggestion_heap, (-buy_weight, quantity, ticker))
-                    print(f"Ticker: {ticker}, Decision: {decision}, Quantity: {quantity}, Weights: Buy: {buy_weight}, Sell: {sell_weight}, Hold: {hold_weight}")
+                    logging.info(f"Ticker: {ticker}, Decision: {decision}, Quantity: {quantity}, Weights: Buy: {buy_weight}, Sell: {sell_weight}, Hold: {hold_weight}")
                     """
                     later we should implement buying_power regulator depending on vix strategy
                     for now in bull: 15000
                     for bear: 5000
                     """
                     
-                    if decision == "buy" and float(account.cash) > 15000 and (((quantity + portfolio_qty) * current_price) / portfolio_value) < 0.1:
+                    if decision == "buy" and float(account.cash) > MIN_ACCOUNT_LIQUIDITY and (((quantity + portfolio_qty) * current_price) / portfolio_value) < MAX_PORTFOLIO_PERCENTAGE:
                         
                         heapq.heappush(buy_heap, (-(buy_weight-(sell_weight + (hold_weight * 0.5))), quantity, ticker))
                     elif (decision == "sell" or sell_weight > buy_weight) and portfolio_qty > 0:
-                        print(f"Executing SELL order for {ticker}")
+                        logging.info(f"Executing SELL order for {ticker}")
                         
                         
                         order = place_order(trading_client, symbol=ticker, side=OrderSide.SELL, quantity=quantity, mongo_url=mongo_url)  # Place order using helper
@@ -203,42 +201,42 @@ def main():
                         logging.info(f"Executed SELL order for {ticker}: {order}")
                         
                     else:
-                        logging.info(f"Holding for {ticker}, no action taken.")
+                        logging.info(f"Decision was {decision} for {ticker}, no action taken.")
                     
 
                 except Exception as e:
                     logging.error(f"Error processing {ticker}: {e}")
 
-            while (buy_heap or suggestion_heap) and float(account.cash) > 15000:  
+            while (buy_heap or suggestion_heap) and float(account.cash) > MIN_ACCOUNT_LIQUIDITY:  
                 try:
                     if buy_heap:
                         _, quantity, ticker = heapq.heappop(buy_heap)
-                        print(f"Executing BUY order for {ticker}")
+                        logging.info(f"Buy-Heap: Executing BUY order for {ticker}")
                         
                         order = place_order(trading_client, symbol=ticker, side=OrderSide.BUY, quantity=quantity, mongo_url=mongo_url)  # Place order using helper
                         
-                        logging.info(f"Executed BUY order for {ticker}: {order}")
+                        logging.info(f"Buy-Heap: Executed BUY order for {ticker}: {order}")
                         
                         trading_client = TradingClient(API_KEY, API_SECRET)
                         account = trading_client.get_account()
                     elif suggestion_heap:
                         _, quantity, ticker = heapq.heappop(suggestion_heap)
-                        print(f"Executing BUY order for {ticker}")
+                        logging.info(f"Sug-Heap: Executing BUY order for {ticker}")
 
                         order = place_order(trading_client, symbol=ticker, side=OrderSide.BUY, quantity=quantity, mongo_url=mongo_url)  # Place order using helper
 
-                        logging.info(f"Executed BUY order for {ticker}: {order}")
+                        logging.info(f"Sug-Heap: Executed BUY order for {ticker}: {order}")
 
                         trading_client = TradingClient(API_KEY, API_SECRET)
                         account = trading_client.get_account()
                     
                     
                 except:
-                    print("Error occurred while executing buy order. Continuing...")
+                    logging.error("Error occurred while executing buy order. Continuing...")
                     break
             
                 
-            print("Sleeping for 60 seconds...")
+            logging.info("Sleeping for 60 seconds...")
             time.sleep(60)
 
         elif status == "early_hours":

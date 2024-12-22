@@ -63,46 +63,44 @@ logging.basicConfig(
 )
 
 def process_ticker(ticker, mongo_client):
-   try:
-      
-      current_price = None
-      historical_data = None
-      while current_price is None:
-         try:
-            current_price = get_latest_price(ticker)
-         except Exception as fetch_error:
-            logging.warning(f"Error fetching price for {ticker}. Retrying... {fetch_error}")
-            time.sleep(10)
-      while historical_data is None:
-         try:
-            
-            historical_data = get_data(ticker)
-         except Exception as fetch_error:
-            logging.warning(f"Error fetching historical data for {ticker}. Retrying... {fetch_error}")
-            time.sleep(10)
+    try:
+        current_price = None
+        historical_data = None
+        while current_price is None:
+            try:
+                current_price = get_latest_price(ticker)
+                if current_price is None:
+                    raise ValueError(f"No price data found for {ticker}")
+                logging.debug(f"Current price of {ticker}: {current_price}")
+            except Exception as fetch_error:
+                logging.warning(f"Error fetching price for {ticker}. Retrying... {fetch_error}")
+                time.sleep(10)
+        while historical_data is None:
+            try:
+                #period = dynamic_period_selector(ticker)
+                historical_data = get_data(ticker)#, period)
+            except Exception as fetch_error:
+                logging.warning(f"Error fetching historical data for {ticker}. Retrying... {fetch_error}")
+                time.sleep(10)
 
-      for strategy in strategies:
-            
-         db = mongo_client.trading_simulator  
-         holdings_collection = db.algorithm_holdings
-         print(f"Processing {strategy.__name__} for {ticker}")
-         strategy_doc = holdings_collection.find_one({"strategy": strategy.__name__})
-         if not strategy_doc:
-            logging.warning(f"Strategy {strategy.__name__} not found in database. Skipping.")
-            continue
+        for strategy in strategies:
+            db = mongo_client.trading_simulator  
+            holdings_collection = db.algorithm_holdings
+            logging.info(f"Processing {strategy.__name__} for {ticker}")
+            strategy_doc = holdings_collection.find_one({"strategy": strategy.__name__})
+            if not strategy_doc:
+                logging.warning(f"Strategy {strategy.__name__} not found in database. Skipping.")
+                continue
 
-         account_cash = strategy_doc["amount_cash"]
-         total_portfolio_value = strategy_doc["portfolio_value"]
+            account_cash = strategy_doc["amount_cash"]
+            total_portfolio_value = strategy_doc["portfolio_value"]
+            portfolio_qty = strategy_doc["holdings"].get(ticker, {}).get("quantity", 0)
 
-         
-         portfolio_qty = strategy_doc["holdings"].get(ticker, {}).get("quantity", 0)
-
-         simulate_trade(ticker, strategy, historical_data, current_price,
-                        account_cash, portfolio_qty, total_portfolio_value, mongo_client)
-         
-      print(f"{ticker} processing completed.")
-   except Exception as e:
-      logging.error(f"Error in thread for {ticker}: {e}")
+            simulate_trade(ticker, strategy, historical_data, current_price,
+                           account_cash, portfolio_qty, total_portfolio_value, mongo_client)
+        logging.info(f"{ticker} processing completed.")
+    except Exception as e:
+        logging.error(f"Error processing ticker {ticker}: {e}")
 
 def simulate_trade(ticker, strategy, historical_data, current_price, account_cash, portfolio_qty, total_portfolio_value, mongo_client):
    """
@@ -110,7 +108,7 @@ def simulate_trade(ticker, strategy, historical_data, current_price, account_cas
    """
     
    # Simulate trading action from strategy
-   print(f"Simulating trade for {ticker} with strategy {strategy.__name__} and quantity of {portfolio_qty}")
+   logging.info(f"Simulating trade for {ticker} with strategy {strategy.__name__} and quantity of {portfolio_qty}")
    action, quantity = simulate_strategy(strategy, ticker, current_price, historical_data, account_cash, portfolio_qty, total_portfolio_value)
    
    # MongoDB setup
@@ -244,7 +242,7 @@ def simulate_trade(ticker, strategy, historical_data, current_price, account_cas
         
    else:
       logging.info(f"Action: {action} | Ticker: {ticker} | Quantity: {quantity} | Price: {current_price}")
-   print(f"Action: {action} | Ticker: {ticker} | Quantity: {quantity} | Price: {current_price}")
+   #print(f"Action: {action} | Ticker: {ticker} | Quantity: {quantity} | Price: {current_price}")
    # Close the MongoDB connection
 
 def update_portfolio_values(client):
@@ -268,8 +266,8 @@ def update_portfolio_values(client):
             try:
                current_price = get_latest_price(ticker)
             except:
-               print(f"Error fetching price for {ticker}. Retrying...")
-          print(f"Current price of {ticker}: {current_price}")
+               logging.warning(f"Error fetching price for {ticker}. Retrying...")
+          logging.debug(f"Current price of {ticker}: {current_price} called from update_portfolio_values")
           # Calculate the value of the holding
           holding_value = holding["quantity"] * current_price
           # Add the holding value to the portfolio value
@@ -279,7 +277,7 @@ def update_portfolio_values(client):
       holdings_collection.update_one({"strategy": strategy_doc["strategy"]}, {"$set": {"portfolio_value": portfolio_value}}, upsert=True)
 
    # Update MongoDB with the modified strategy documents
-   
+   logging.debug("Portfolio values updated.")
 
 def update_ranks(client):
    """"
@@ -316,7 +314,8 @@ def update_ranks(client):
       _, _, _, strategy_name = heapq.heappop(q)
       rank_collection.insert_one({"strategy": strategy_name, "rank": rank})
       rank+=1
-   
+
+   logging.debug("Ranks updated.")
 
 def main():  
    """  
@@ -382,7 +381,7 @@ def main():
       else:  
         logging.error("An error occurred while checking market status.")  
         time.sleep(60)
-      mongo_client.close()
+      
    
   
 if __name__ == "__main__":  
