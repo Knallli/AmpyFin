@@ -303,8 +303,11 @@ def update_ranks(client):
       strategy_name = strategy_doc["strategy"]
       if strategy_name == "test" or strategy_name == "test_strategy":
          continue
-
-      heapq.heappush(q, (points_collection.find_one({"strategy": strategy_name})["total_points"]/10 + (strategy_doc["portfolio_value"]), strategy_doc["successful_trades"] - strategy_doc["failed_trades"], strategy_doc["amount_cash"], strategy_doc["strategy"]))
+      if points_collection.find_one({"strategy": strategy_name})["total_points"] > 0:
+         
+         heapq.heappush(q, (points_collection.find_one({"strategy": strategy_name})["total_points"] * 2 + (strategy_doc["portfolio_value"]), strategy_doc["successful_trades"] - strategy_doc["failed_trades"], strategy_doc["amount_cash"], strategy_doc["strategy"]))
+      else:
+         heapq.heappush(q, (strategy_doc["portfolio_value"], strategy_doc["successful_trades"] - strategy_doc["failed_trades"], strategy_doc["amount_cash"], strategy_doc["strategy"]))
    rank = 1
    while q:
       
@@ -327,10 +330,10 @@ def main():
       mongo_client = MongoClient(mongo_url, tlsCAFile=ca)
       status = mongo_client.market_data.market_status.find_one({})["market_status"]
       
-      
       if status == "open":  
-         logging.info("Market is open. Processing strategies.")  
+         
          if not ndaq_tickers:
+            logging.info("Market is open. Processing strategies.")  
             ndaq_tickers = get_ndaq_tickers(mongo_url, FINANCIAL_PREP_API_KEY)
 
          threads = []
@@ -351,21 +354,22 @@ def main():
          time.sleep(60)  
       
       elif status == "early_hours":  
-            if early_hour_first_iteration:  
+            if early_hour_first_iteration is True:  
                
                ndaq_tickers = get_ndaq_tickers(mongo_url, FINANCIAL_PREP_API_KEY)  
                early_hour_first_iteration = False  
                post_market_hour_first_iteration = True
-            logging.info("Market is in early hours. Waiting for 60 seconds.")  
+               logging.info("Market is in early hours. Waiting for 60 seconds.")  
             time.sleep(60)  
   
       elif status == "closed":  
          
-        early_hour_first_iteration = True
-        if post_market_hour_first_iteration:
+        
+        if post_market_hour_first_iteration is True:
+            early_hour_first_iteration = True
             logging.info("Market is closed. Performing post-market analysis.") 
             post_market_hour_first_iteration = False
-            #increment time_Delta in database by 0.01
+            #increment time_delta in database by 0.01
             
             mongo_client.trading_simulator.time_delta.update_one({}, {"$inc": {"time_delta": 0.01}})
             
@@ -373,7 +377,6 @@ def main():
             #Update ranks
             update_portfolio_values(mongo_client)
             update_ranks(mongo_client)
-        logging.info("Market is closed. Waiting for 60 seconds.")
         time.sleep(60)  
       else:  
         logging.error("An error occurred while checking market status.")  
